@@ -18,7 +18,7 @@ typedef struct LUT{
 
 // CONSTANTS
 
-typedef enum  {
+enum  {
   movetodir, whereami, history,
   byebye, replay, start, background,
   dalek, repeat, dalekall
@@ -72,7 +72,15 @@ int main(){
     if(strcmp(word_array[0], LOOKUP[byebye].val) == 0){
       EXIT = 1;
     }else if(strcmp(word_array[0], LOOKUP[history].val) == 0){
-      printHistory();
+      if(word_array[1] != NULL){
+        if(strcmp(word_array[1], "-c") == 0){
+          IDX = -1;
+        }else{
+          printf("Invalid arguments for history. Did you mean -c?\n");
+        }
+      }else{
+        printHistory();
+      }
     }
   }
   writeHistory();
@@ -146,8 +154,12 @@ void pushHistory(char** word_array, size_t n){
   IDX++;
   n--;
 
+  if(hist == NULL){
+    hist = malloc(sizeof(HISTORY) * (SIZE + 1));
+  }
+
   if(IDX == SIZE){
-    realloc(hist, sizeof(HISTORY) * ((SIZE + 1) * 2));
+    hist = realloc(hist, sizeof(HISTORY) * ((SIZE + 1) * 2));
   }
 
   hist[IDX].numParams = n; // Set num parameters
@@ -177,7 +189,12 @@ void freeHistory(){
 }
 
 void printHistory(){
-  for(int i = 0; i <= IDX; i++){
+  if(IDX - 1 < 0){
+    printf("No history to print.\n");
+    return;
+  }
+
+  for(int i = 0; i <= IDX - 1; i++){
     printf("%d: %s", i, hist[i].cmd);
     for(int j = 0; j < hist[i].numParams; j++){
       printf(" %s", hist[i].params[j]);
