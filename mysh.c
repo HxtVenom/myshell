@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
+#include <dirent.h>
 #include <unistd.h>
 
 // TYPES
@@ -50,9 +52,11 @@ int EXIT = 0;
 int SIZE = 100;
 int IDX = -1;
 HISTORY *hist;
+char *currentdir;
 
 int main(){
   getHistory();
+  currentdir = malloc(4 * sizeof(char));
 
   while(!EXIT){
     // INITIALIZE INPUT VARIABLES
@@ -81,10 +85,30 @@ int main(){
       }else{
         printHistory();
       }
+    }else if(strcmp(word_array[0], LOOKUP[whereami].val) == 0){
+      printf("%s\n", currentdir);
+    }else if(strcmp(word_array[0], LOOKUP[movetodir].val) == 0){
+      if(word_array[1] == NULL){
+        printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
+      }
+
+      DIR* dir = opendir(word_array[1]);
+
+      if(dir){
+        currentdir = realloc(currentdir, sizeof(char) * strlen(word_array[1]));
+        strcpy(currentdir, word_array[1]);
+      }else if(ENOENT == errno){
+        printf("Directory '%s' does not exist.\n", word_array[1]);
+      }else{
+        printf("Failed to open directory, please try again.\n");
+      }
+    }else{
+      printf("Command '%s' does not exist.\n", word_array[0]);
     }
   }
   writeHistory();
   freeHistory();
+  free(currentdir);
   // getHistory();
 }
 
