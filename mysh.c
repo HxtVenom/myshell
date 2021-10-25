@@ -41,6 +41,7 @@ LUT LOOKUP[] = {
 
 // FUNCTIONS
 size_t string_parser( const char *input, char ***word_array);
+void run(char **word_array);
 void getHistory();
 void writeHistory();
 void pushHistory(char** word_array, size_t n);
@@ -73,43 +74,47 @@ int main(){
     size_t n = string_parser(buf, &word_array);
     pushHistory(word_array, n);
 
-    if(strcmp(word_array[0], LOOKUP[byebye].val) == 0){
-      EXIT = 1;
-    }else if(strcmp(word_array[0], LOOKUP[history].val) == 0){
-      if(word_array[1] != NULL){
-        if(strcmp(word_array[1], "-c") == 0){
-          IDX = -1;
-        }else{
-          printf("Invalid arguments for history. Did you mean -c?\n");
-        }
-      }else{
-        printHistory();
-      }
-    }else if(strcmp(word_array[0], LOOKUP[whereami].val) == 0){
-      printf("%s\n", currentdir);
-    }else if(strcmp(word_array[0], LOOKUP[movetodir].val) == 0){
-      if(word_array[1] == NULL){
-        printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
-      }
-
-      DIR* dir = opendir(word_array[1]);
-
-      if(dir){
-        currentdir = realloc(currentdir, sizeof(char) * strlen(word_array[1]));
-        strcpy(currentdir, word_array[1]);
-      }else if(ENOENT == errno){
-        printf("Directory '%s' does not exist.\n", word_array[1]);
-      }else{
-        printf("Failed to open directory, please try again.\n");
-      }
-    }else{
-      printf("Command '%s' does not exist.\n", word_array[0]);
-    }
+    run(word_array);
   }
   writeHistory();
   freeHistory();
   free(currentdir);
   // getHistory();
+}
+
+void run(char **word_array){
+  if(strcmp(word_array[0], LOOKUP[byebye].val) == 0){
+    EXIT = 1;
+  }else if(strcmp(word_array[0], LOOKUP[history].val) == 0){
+    if(word_array[1] != NULL){
+      if(strcmp(word_array[1], "-c") == 0){
+        IDX = -1;
+      }else{
+        printf("Invalid arguments for history. Did you mean -c?\n");
+      }
+    }else{
+      printHistory();
+    }
+  }else if(strcmp(word_array[0], LOOKUP[whereami].val) == 0){
+    printf("%s\n", currentdir);
+  }else if(strcmp(word_array[0], LOOKUP[movetodir].val) == 0){
+    if(word_array[1] == NULL){
+      printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
+    }
+
+    DIR* dir = opendir(word_array[1]);
+
+    if(dir){
+      currentdir = realloc(currentdir, sizeof(char) * strlen(word_array[1]));
+      strcpy(currentdir, word_array[1]);
+    }else if(ENOENT == errno){
+      printf("Directory '%s' does not exist.\n", word_array[1]);
+    }else{
+      printf("Failed to open directory, please try again.\n");
+    }
+  }else{
+    printf("Command '%s' does not exist.\n", word_array[0]);
+  }
 }
 
 void getHistory(){
