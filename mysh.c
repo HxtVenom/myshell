@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include <errno.h>
 #include <dirent.h>
+#include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 // TYPES
 typedef struct HISTORY {
@@ -41,21 +42,30 @@ LUT LOOKUP[] = {
 
 // FUNCTIONS
 size_t string_parser( const char *input, char ***word_array);
-void run(char **word_array);
+void runChild(char **word_array);
+void *run(void *ptr);
 void getHistory();
 void writeHistory();
 void pushHistory(char** word_array, size_t n);
 void freeHistory();
 void printHistory();
 
+// COMMAND FUNCTIONS
+void historyCommand(int index);
+void movetodirCommand(int index);
+void replayCommand(int index);
+
 // GLOBAL VARIABLES
-int EXIT = 0;
+int *EXIT;
 int SIZE = 100;
 int IDX = -1;
 HISTORY *hist;
+pthread_t *programs;
 char *currentdir;
 
 int main(){
+  EXIT = malloc(sizeof(int));
+  EXIT = 0;
   getHistory();
   currentdir = malloc(4 * sizeof(char));
 
@@ -74,7 +84,7 @@ int main(){
     size_t n = string_parser(buf, &word_array);
     pushHistory(word_array, n);
 
-    run(word_array);
+    runChild(word_array);
   }
   writeHistory();
   freeHistory();
@@ -82,39 +92,86 @@ int main(){
   // getHistory();
 }
 
-void run(char **word_array){
-  if(strcmp(word_array[0], LOOKUP[byebye].val) == 0){
+void runChild(char** word_array){
+  pthread_t pid;
+  int status;
+  
+  pthread_create(&pid, NULL, run, (void *)IDX);
+
+  pthread_join(pid, NULL);
+}
+
+void *run(void *ptr){
+  int index = (int) ptr;
+
+  if(strcmp(hist[index].cmd, LOOKUP[byebye].val) == 0){
     EXIT = 1;
-  }else if(strcmp(word_array[0], LOOKUP[history].val) == 0){
-    if(word_array[1] != NULL){
-      if(strcmp(word_array[1], "-c") == 0){
-        IDX = -1;
-      }else{
-        printf("Invalid arguments for history. Did you mean -c?\n");
-      }
-    }else{
-      printHistory();
-    }
-  }else if(strcmp(word_array[0], LOOKUP[whereami].val) == 0){
+  }else if(strcmp(hist[index].cmd, LOOKUP[history].val) == 0){
+    historyCommand(index);
+  }else if(strcmp(hist[index].cmd, LOOKUP[whereami].val) == 0){
     printf("%s\n", currentdir);
-  }else if(strcmp(word_array[0], LOOKUP[movetodir].val) == 0){
-    if(word_array[1] == NULL){
-      printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
-    }
+  }else if(strcmp(hist[index].cmd, LOOKUP[movetodir].val) == 0){
+    movetodirCommand(index);
+  }else if(strcmp(hist[index].cmd, LOOKUP[replay].val) == 0){
+    replayCommand(index);
+  }else{
+    printf("Command '%s' does not exist.\n", hist[index].cmd);
+  }
+}
 
-    DIR* dir = opendir(word_array[1]);
-
-    if(dir){
-      currentdir = realloc(currentdir, sizeof(char) * strlen(word_array[1]));
-      strcpy(currentdir, word_array[1]);
-    }else if(ENOENT == errno){
-      printf("Directory '%s' does not exist.\n", word_array[1]);
+void historyCommand(int index){
+  if(hist[index].numParams > 0){
+    if(strcmp(hist[index].params[0], "-c") == 0){
+      // freeHistory(); TODO: FIX THIS SO YOU DON'T have dead memory.
+      IDX = -1;
     }else{
-      printf("Failed to open directory, please try again.\n");
+      printf("Invalid arguments for history. Did you mean -c?\n");
     }
   }else{
-    printf("Command '%s' does not exist.\n", word_array[0]);
+    printHistory();
   }
+}
+
+void movetodirCommand(int index){
+  if(hist[index].numParams == 0){
+    printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
+    return;
+  }
+
+  DIR* dir = opendir(hist[index].params[0]);
+
+  if(dir){
+    currentdir = realloc(currentdir, sizeof(char) * strlen(hist[index].params[0]));
+    strcpy(currentdir, hist[index].params[0]);
+  }else if(ENOENT == errno){
+    printf("Directory '%s' does not exist.\n", hist[index].params[0]);
+  }else{
+    printf("Failed to open directory, please try again.\n");
+  }
+}
+
+void replayCommand(int index){
+  if(hist[index].numParams == 0){
+    printf("Please provide the number of the command to replay.");
+    return;
+  }else{
+    for(int i = 0; i < strlen(hist[index].params[0]); i++){
+      if(!isdigit(hist[index].params[0][i])){
+        printf("Please enter a valid number.");
+        return;
+      }
+    }
+  }
+
+  int newIDX = atoi(hist[index].params[0]);
+
+  if(newIDX > IDX){
+    printf("Number provided is out of range.\n");
+    return;
+  }
+
+
+  run((void*) newIDX);
 }
 
 void getHistory(){
@@ -234,6 +291,7 @@ void printHistory(){
   return;
 }
 
+// Parses input string into a words array.
 size_t string_parser( const char *input, char ***word_array) 
 {
     size_t n = 0;
