@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <dirent.h>
+#include <signal.h>
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -44,6 +45,7 @@ LUT LOOKUP[] = {
 size_t string_parser( const char *input, char ***word_array);
 void runChild(char **word_array);
 void *run(void *ptr);
+void pushPID(pid_t pid);
 void getHistory();
 void writeHistory();
 void pushHistory(char** word_array, size_t n);
@@ -54,6 +56,9 @@ void printHistory();
 void historyCommand(int index);
 void movetodirCommand(int index);
 void replayCommand(int index);
+void startCommand(int index);
+void backgroundCommand(int index);
+void dalekCommand(int index);
 
 // GLOBAL VARIABLES
 int *EXIT;
@@ -61,7 +66,10 @@ int SIZE = 100;
 int IDX = -1;
 HISTORY *hist;
 pthread_t *programs;
+int pidSIZE = 0;
+int pidLAST =-1;
 char *currentdir;
+pid_t *running;
 
 int main(){
   EXIT = malloc(sizeof(int));
@@ -114,6 +122,12 @@ void *run(void *ptr){
     movetodirCommand(index);
   }else if(strcmp(hist[index].cmd, LOOKUP[replay].val) == 0){
     replayCommand(index);
+  }else if(strcmp(hist[index].cmd, LOOKUP[start].val) == 0){
+    startCommand(index);
+  }else if(strcmp(hist[index].cmd, LOOKUP[background].val) == 0){
+    backgroundCommand(index);
+  }else if(strcmp(hist[index].cmd, LOOKUP[dalek].val) == 0){
+    dalekCommand(index);
   }else{
     printf("Command '%s' does not exist.\n", hist[index].cmd);
   }
@@ -172,6 +186,95 @@ void replayCommand(int index){
 
 
   run((void*) newIDX);
+}
+
+void startCommand(int index){
+  pid_t pid;
+  int status;
+
+  if((pid = fork()) < 0){
+    printf("Failed to fork().\n");
+  }else if(pid == 0){
+    execvp(hist[index].params[0], hist[index].params);
+
+    printf("Failed to run %s\n", hist[index].params[0]);
+    exit(1);
+  }else do{
+    if((pid = waitpid(pid, &status, WNOHANG)) == -1){ // Wait error
+      printf("Failed to wait().");
+    }else if(pid == 0){ // Child is still running
+      sleep(0.5);
+    }
+  } while(pid == 0);
+}
+
+void backgroundCommand(int index){
+  pid_t pid;
+  int status;
+
+  if((pid = fork()) < 0){
+    printf("Failed to fork().\n");
+  }else if(pid == 0){
+    execvp(hist[index].params[0], hist[index].params);
+
+    printf("Failed to run %s\n", hist[index].params[0]);
+    exit(1);
+  }else{
+    printf("%d\n", pid);
+    pushPID(pid);
+  }
+}
+
+void dalekCommand(int index){
+  if(hist[index].numParams == 0){
+    printf("Please provide a PID to terminate.\n");
+    return;
+  }else{
+    for(int i = 0; i < strlen(hist[index].params[0]); i++){
+      if(!isdigit(hist[index].params[0][i])){
+        printf("Please enter a valid PID.");
+        return;
+      }
+    }
+  }
+
+  pid_t pid = atoi(hist[index].params[0]);
+
+  int res = kill(pid, SIGKILL);
+
+  if(res == -1){
+    if(errno == ESRCH){
+      printf("Process %d not found.\n", pid);
+    }
+    return;
+  }
+
+  int status;
+  
+  do{
+    if ((pid = waitpid(pid, &status, WNOHANG)) == -1)
+      perror("wait() error");
+    else if (pid == 0) {
+      sleep(1);
+    }
+    else {
+      if (WIFEXITED(status))
+        printf("child exited with status of %d\n", WEXITSTATUS(status));
+      else puts("child did not exit successfully");
+    }
+  } while(pid == 0);
+}
+
+void pushPID(pid_t pid){
+  if(running == NULL){
+    pidSIZE = 10;
+    running = malloc(sizeof(pid_t) * pidSIZE);
+  }else if(pidLAST == pidSIZE - 1){
+    pidSIZE *= 2;
+    running = realloc(running, sizeof(pid_t) * pidSIZE);
+  }
+
+  running[++pidLAST] = pid;
 }
 
 void getHistory(){
