@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #include <pthread.h>
 
 // TYPES
@@ -51,6 +52,7 @@ void writeHistory();
 void pushHistory(char** word_array, size_t n);
 void freeHistory();
 void printHistory();
+void pushPath(char **dest, char *source);
 
 // COMMAND FUNCTIONS
 void historyCommand(int index);
@@ -156,8 +158,7 @@ void movetodirCommand(int index){
   DIR* dir = opendir(hist[index].params[0]);
 
   if(dir){
-    currentdir = realloc(currentdir, sizeof(char) * strlen(hist[index].params[0]));
-    strcpy(currentdir, hist[index].params[0]);
+    pushPath(&currentdir, hist[index].params[0]);
   }else if(ENOENT == errno){
     printf("Directory '%s' does not exist.\n", hist[index].params[0]);
   }else{
@@ -196,7 +197,7 @@ void startCommand(int index){
     printf("Please provide a program to run.\n");
     return;
   }else if(hist[index].params[0][0] != '/'){
-    hist[index].params[0] = strcat("./", hist[index].params[0]);
+    pushPath(&hist[index].params[0], hist[index].params[0]);;
   }
 
   if((pid = fork()) < 0){
@@ -221,6 +222,8 @@ void backgroundCommand(int index){
   if(hist[index].numParams == 0){
     printf("Please provide a program to run.\n");
     return;
+  }else if(hist[index].params[0][0] != '/'){
+    pushPath(&hist[index].params[0], hist[index].params[0]);;
   }
 
   if((pid = fork()) < 0){
@@ -274,6 +277,21 @@ void dalekCommand(int index){
   } while(pid == 0);
 }
 
+void pushPath(char **dest, char *source){
+  char *newPath = malloc((strlen(currentdir) + strlen(source) + 1) * sizeof(char));
+    
+    strcpy(newPath, currentdir);
+    
+    char slash[] = "/";
+
+    strcat(newPath, slash);
+    strcat(newPath, source);
+
+    *dest = realloc(*dest, strlen(newPath) * sizeof(char));
+    strcpy(*dest, newPath);
+    
+    free(newPath);
+}
 void pushPID(pid_t pid){
   if(running == NULL){
     pidSIZE = 10;
