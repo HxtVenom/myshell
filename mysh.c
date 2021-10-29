@@ -204,7 +204,7 @@ void startCommand(int index){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
-
+    printf("Program '%s' does not exist.\n", hist[index].params[0]);
     exit(1);
   }else do{
     if((pid = waitpid(pid, &status, WNOHANG)) == -1){ // Wait error
@@ -230,6 +230,7 @@ void backgroundCommand(int index){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
+    printf("Program '%s' does not exist.\n", hist[index].params[0]);
     exit(1);
   }else{
     printf("%d\n", pid);
