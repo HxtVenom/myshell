@@ -85,7 +85,7 @@ int main(){
     buf = malloc(size);
 
     // GET USER INPUT
-    printf(">> ");
+    printf("# ");
     getline(&buf, &size, stdin);
 
     // PARSE INPUT AND PUSH TO HISTORY
@@ -184,8 +184,7 @@ void replayCommand(int index){
     return;
   }
 
-
-  run((void*) newIDX);
+  run((void*)  (index - newIDX - 1));
 }
 
 void startCommand(int index){
@@ -378,13 +377,15 @@ void freeHistory(){
 }
 
 void printHistory(){
-  if(IDX - 1 < 0){
+  if(IDX < 0){
     printf("No history to print.\n");
     return;
   }
 
-  for(int i = 0; i <= IDX - 1; i++){
-    printf("%d: %s", i, hist[i].cmd);
+  int temp = 0;
+
+  for(int i = IDX; i >= 0; i--){
+    printf("%d: %s", temp++, hist[i].cmd);
     for(int j = 0; j < hist[i].numParams; j++){
       printf(" %s", hist[i].params[j]);
     }
