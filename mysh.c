@@ -59,6 +59,7 @@ void replayCommand(int index);
 void startCommand(int index);
 void backgroundCommand(int index);
 void dalekCommand(int index);
+void runProgram(int index);
 
 // GLOBAL VARIABLES
 int *EXIT;
@@ -75,7 +76,7 @@ int main(){
   EXIT = malloc(sizeof(int));
   EXIT = 0;
   getHistory();
-  currentdir = malloc(4 * sizeof(char));
+  currentdir = getcwd(NULL, 0);
 
   while(!EXIT){
     // INITIALIZE INPUT VARIABLES
@@ -191,12 +192,18 @@ void startCommand(int index){
   pid_t pid;
   int status;
 
+  if(hist[index].numParams == 0){
+    printf("Please provide a program to run.\n");
+    return;
+  }else if(hist[index].params[0][0] != '/'){
+    hist[index].params[0] = strcat("./", hist[index].params[0]);
+  }
+
   if((pid = fork()) < 0){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
 
-    printf("Failed to run %s\n", hist[index].params[0]);
     exit(1);
   }else do{
     if((pid = waitpid(pid, &status, WNOHANG)) == -1){ // Wait error
@@ -211,12 +218,15 @@ void backgroundCommand(int index){
   pid_t pid;
   int status;
 
+  if(hist[index].numParams == 0){
+    printf("Please provide a program to run.\n");
+    return;
+  }
+
   if((pid = fork()) < 0){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
-
-    printf("Failed to run %s\n", hist[index].params[0]);
     exit(1);
   }else{
     printf("%d\n", pid);
