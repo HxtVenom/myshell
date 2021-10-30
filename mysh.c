@@ -64,7 +64,7 @@ void dalekCommand(int index);
 void runProgram(int index);
 
 // GLOBAL VARIABLES
-int *EXIT;
+int EXIT = 0;
 int SIZE = 100;
 int IDX = -1;
 HISTORY *hist;
@@ -75,8 +75,6 @@ char *currentdir;
 pid_t *running;
 
 int main(){
-  EXIT = malloc(sizeof(int));
-  EXIT = 0;
   getHistory();
   currentdir = getcwd(NULL, 0);
 
@@ -134,6 +132,8 @@ void *run(void *ptr){
   }else{
     printf("Command '%s' does not exist.\n", hist[index].cmd);
   }
+
+  return NULL;
 }
 
 void historyCommand(int index){
@@ -152,6 +152,23 @@ void historyCommand(int index){
 void movetodirCommand(int index){
   if(hist[index].numParams == 0){
     printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
+    return;
+  }
+
+  if(!strcmp(hist[index].params[0], "..") || !strcmp(hist[index].params[0], "../")){
+    int lastSeen = -1;
+    for(int i = 0; i < strlen(currentdir); i++){
+      if(currentdir[i] == '/'){
+        lastSeen = i;
+      }
+    }
+
+    if(lastSeen == -1){
+      printf("No previus directory found.\n");
+      return;
+    }
+
+    currentdir[lastSeen] = '\0';
     return;
   }
 
@@ -273,7 +290,7 @@ void dalekCommand(int index){
     else {
       if (WIFEXITED(status))
         printf("child exited with status of %d\n", WEXITSTATUS(status));
-      else puts("child did not exit successfully");
+      else printf("Process: %d terminated successfully.\n", pid);
     }
   } while(pid == 0);
 }
@@ -293,6 +310,7 @@ void pushPath(char **dest, char *source){
     
     free(newPath);
 }
+
 void pushPID(pid_t pid){
   if(running == NULL){
     pidSIZE = 10;
