@@ -1,3 +1,18 @@
+/**
+ * mysh.c
+ * Written by Ricardo Ruiz
+ * 
+ * A terminal program that provides basic functionality
+ * for file system navigation and execution of programs
+ * in the foreground and background.
+ * 
+ * Installation:
+ * 1. Download mysh.c
+ * 2. Place it in a folder and navigate to that folder in a terminal.
+ * 3. Use whatever C compiler that is available. (gcc, clang, etc.)
+ * 4. Run executable and enjoy!
+ * **/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -22,7 +37,6 @@ typedef struct LUT{
 } LUT;
 
 // CONSTANTS
-
 enum  {
   movetodir, whereami, history,
   byebye, replay, start, background,
@@ -61,18 +75,16 @@ void replayCommand(int index);
 void startCommand(int index);
 void backgroundCommand(int index);
 void dalekCommand(int index);
-void runProgram(int index);
 
 // GLOBAL VARIABLES
-int EXIT = 0;
+int EXIT = 0; // EXIT variable to be set when 'byebye' is executed.
 int SIZE = 100;
 int IDX = -1;
-HISTORY *hist;
-pthread_t *programs;
+HISTORY *hist; // History variable
 int pidSIZE = 0;
 int pidLAST =-1;
-char *currentdir;
-pid_t *running;
+char *currentdir; // Current working directory (full path).
+pid_t *running; // Holds current running background programs.
 
 int main(){
   getHistory();
@@ -82,25 +94,32 @@ int main(){
     // INITIALIZE INPUT VARIABLES
     char* buf; // Initial input
     char** word_array = NULL; // Input split by " "
-    size_t size = 1024;
+    size_t size = 1024; // Arbitrary size value
     buf = malloc(size);
 
     // GET USER INPUT
-    printf("# ");
-    getline(&buf, &size, stdin);
+    printf("# "); // Prompt
+    getline(&buf, &size, stdin); // Retrieves line from input.
 
     // PARSE INPUT AND PUSH TO HISTORY
     size_t n = string_parser(buf, &word_array);
     pushHistory(word_array, n);
 
-    runChild(word_array);
+    runChild(word_array); // Run command in child pthread.
+
+    for(int i = 0; i < n; i++){
+      free(word_array[i]);
+    }
+    free(word_array);
   }
   writeHistory();
   freeHistory();
   free(currentdir);
-  // getHistory();
+
+  return 0;
 }
 
+// Creates pthread to run command off of.
 void runChild(char** word_array){
   pthread_t pid;
   int status;
@@ -110,6 +129,7 @@ void runChild(char** word_array){
   pthread_join(pid, NULL);
 }
 
+// Runs commands.
 void *run(void *ptr){
   int index = (int) ptr;
 
@@ -136,6 +156,7 @@ void *run(void *ptr){
   return NULL;
 }
 
+// History Command
 void historyCommand(int index){
   if(hist[index].numParams > 0){
     if(strcmp(hist[index].params[0], "-c") == 0){
@@ -149,12 +170,14 @@ void historyCommand(int index){
   }
 }
 
+// Movetodir Command
 void movetodirCommand(int index){
   if(hist[index].numParams == 0){
     printf("Invalid arguments for movetodir. Make sure to include a directory.\n");
     return;
   }
 
+  // Go back directory.
   if(!strcmp(hist[index].params[0], "..") || !strcmp(hist[index].params[0], "../")){
     int lastSeen = -1;
     for(int i = 0; i < strlen(currentdir); i++){
@@ -172,17 +195,19 @@ void movetodirCommand(int index){
     return;
   }
 
+  // Open directory
   DIR* dir = opendir(hist[index].params[0]);
 
-  if(dir){
+  if(dir){ // Directory Exists.
     pushPath(&currentdir, hist[index].params[0]);
-  }else if(ENOENT == errno){
+  }else if(ENOENT == errno){ // Directory not found.
     printf("Directory '%s' does not exist.\n", hist[index].params[0]);
-  }else{
+  }else{ // Random errir.
     printf("Failed to open directory, please try again.\n");
   }
 }
 
+// Replay History command.
 void replayCommand(int index){
   if(hist[index].numParams == 0){
     printf("Please provide the number of the command to replay.");
@@ -206,6 +231,7 @@ void replayCommand(int index){
   run((void*)  (index - newIDX - 1));
 }
 
+// Start program command
 void startCommand(int index){
   pid_t pid;
   int status;
@@ -221,17 +247,19 @@ void startCommand(int index){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
-    printf("Program '%s' does not exist.\n", hist[index].params[0]);
-    exit(1);
+    printf("Failed to run '%s\n'", hist[index].params[0]);
+    exit(errno);
   }else do{
     if((pid = waitpid(pid, &status, WNOHANG)) == -1){ // Wait error
       printf("Failed to wait().");
     }else if(pid == 0){ // Child is still running
-      sleep(0.5);
+      sleep(1);
     }
+
   } while(pid == 0);
 }
 
+// Start background program command.
 void backgroundCommand(int index){
   pid_t pid;
   int status;
@@ -247,14 +275,15 @@ void backgroundCommand(int index){
     printf("Failed to fork().\n");
   }else if(pid == 0){
     execvp(hist[index].params[0], hist[index].params);
-    printf("Program '%s' does not exist.\n", hist[index].params[0]);
-    exit(1);
+    printf("Failed to run '%s'\n", hist[index].params[0]);
+    exit(errno);
   }else{
     printf("%d\n", pid);
     pushPID(pid);
   }
 }
 
+// Kill Process command.
 void dalekCommand(int index){
   if(hist[index].numParams == 0){
     printf("Please provide a PID to terminate.\n");
@@ -311,6 +340,7 @@ void pushPath(char **dest, char *source){
     free(newPath);
 }
 
+// Puts pid from background into global array to keep track of running processes.
 void pushPID(pid_t pid){
   if(running == NULL){
     pidSIZE = 10;
@@ -323,6 +353,7 @@ void pushPID(pid_t pid){
   running[++pidLAST] = pid;
 }
 
+// Parses history from .txt file.
 void getHistory(){
   FILE *ptr;
   ptr = fopen("history.txt", "r");
@@ -365,6 +396,7 @@ void getHistory(){
   return;
 }
 
+// Writes history to external file.
 void writeHistory(){
   FILE *ptr;
   ptr = fopen("history.txt", "w");
@@ -385,6 +417,7 @@ void writeHistory(){
   return;
 }
 
+// Adds an item to a history.
 void pushHistory(char** word_array, size_t n){
   IDX++;
   n--;
@@ -413,6 +446,7 @@ void pushHistory(char** word_array, size_t n){
   return;
 }
 
+// Frees memory allocated for history.
 void freeHistory(){
   for(int i = 0; i < SIZE; i++){
     free(hist[i].cmd);
@@ -423,6 +457,7 @@ void freeHistory(){
   free(hist);
 }
 
+// Prints history in reverse order.
 void printHistory(){
   if(IDX < 0){
     printf("No history to print.\n");
